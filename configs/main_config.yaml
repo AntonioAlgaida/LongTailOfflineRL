@@ -1,0 +1,138 @@
+# ==============================================================================
+# main_config.yaml for the Long-Tail Offline RL Project
+# ==============================================================================
+
+# --- Path Configurations ---
+data:
+  # Absolute path to the root of your raw Waymo .tfrecord files
+  raw_data_dir: "/mnt/d/waymo_datasets/uncompressed/scenario/"
+  
+  # Absolute paths to data directories on your larger D: drive
+  processed_npz_dir: "/mnt/d/waymo_datasets/waymo_longtail_rl_data/processed_npz"
+  criticality_scores_dir: "/mnt/d/waymo_datasets/waymo_longtail_rl_data/criticality_scores"
+  criticality_scores_dir_v2: "/mnt/d/waymo_datasets/waymo_longtail_rl_data/criticality_scores_v2"
+
+  featurized_dir: "/mnt/d/waymo_datasets/waymo_longtail_rl_data/featurized"
+  featurized_dir_v2: "/mnt/d/waymo_datasets/waymo_longtail_rl_data/featurized_v2"
+  
+  # Path for the feature statistics file
+  feature_stats_path: "/mnt/d/waymo_datasets/waymo_longtail_rl_data/feature_stats.npz"
+  feature_stats_path_v2: "/mnt/d/waymo_datasets/waymo_longtail_rl_data/feature_stats_v2.npz"
+
+  # Number of parallel workers for data processing scripts
+  num_workers: 16
+
+# --- Feature Engineering Configurations ---
+# These parameters define the structure of the state vector from the FeatureExtractor.
+features:
+  num_agents: 16           # Max number of other agents to include in the state
+  num_map_polylines: 64   # Max number of map polylines
+  map_points_per_polyline: 10
+  num_goal_points: 5 # Number of future waypoints to include as the goal
+
+# --- Map-related Heuristic Configurations ---
+map:
+  on_road_threshold: 5.0 # Max dist (m) from a lane centerline to be considered "on-road"
+  intersection_road_line_dist_threshold: 2.5 # Used for the is_in_intersection flag
+
+# --- Action Space Configurations ---
+action_space:
+  dim: 2 # [acceleration, yaw_rate]
+  max_acceleration: 8.0
+  min_acceleration: -10.0
+  # Max yaw rate limit (rad/s). A sharp turn is ~0.8 rad/s.
+  max_yaw_rate: 1.0 
+
+# --- Criticality Scoring Configurations ---
+scoring:
+  # Parameters for the heuristic-based scoring
+  heuristic:
+    # Adjusted weights to incorporate the new off-road proximity score.
+    # The primary focus remains on dynamic plan changes and interactions.
+    weight_volatility: 0.40
+    weight_interaction: 0.05
+    weight_off_road: 0.05
+    weight_lane_deviation: 0.47
+    weight_density: 0.03
+    
+  # Parameters for the ensemble-based scoring
+  ensemble:
+    num_folds: 5 # Number of scout models to train in the ensemble
+    # Scout model architecture (simple MLP)
+    scout_hidden_layers: [256, 128]
+    scout_learning_rate: 1.0e-4
+    scout_weight_decay: 1.0e-5
+    scout_batch_size: 256
+    scout_num_epochs: 20
+    k_samples_per_scenario: 2
+
+# --- Offline RL (CQL) Training Configurations ---
+cql:
+  # For the Attention-based Actor
+  embed_dim: 64             # Shared embedding dimension for all entities.
+                               # Controls the "width" of the attention mechanism.
+                               # Good values: 64, 128, 256.
+  num_attention_heads: 4     # Number of heads in MultiheadAttention. Must be a
+                               # divisor of embed_dim (e.g., 128 % 4 == 0).
+                               # Good values: 2, 4, 8.
+  
+  # For the MLP parts of both Actor and Critic
+  # A list of hidden layer sizes. The length of the list determines the depth.
+  hidden_layers: [128, 128]  # Defines a 2-hidden-layer MLP with 256 neurons each.
+  
+  # Core training hyperparameters
+  learning_rate_actor: 1.0e-5
+  learning_rate_critic: 3.0e-5
+  batch_size: 512 # Tune based on VRAM
+  num_train_steps: 510000 # Train for a fixed number of gradient steps
+  gamma: 0.90 # Discount factor
+
+  # CQL-specific hyperparameters
+  cql_alpha: 2.0 # Weight of the conservative Q-loss regularizer. This is a key param to tune.
+  cql_n_actions: 10 # Number of actions to sample for the conservative loss
+
+  # === NEW: BC Auxiliary Loss Hyperparameters ===
+  # The initial weight for the RL component of the actor loss.
+  # A low value (e.g., 0.01) means we start with 99% BC, 1% RL.
+  bc_alpha_initial: 0.01
+  
+  # The final weight for the RL component after decaying.
+  # A value of 1.0 means we end with 100% RL.
+  bc_alpha_final: 1.0
+  
+  # The number of training steps over which to decay alpha from initial to final.
+  bc_alpha_decay_steps: 200000
+
+  # Target network update rate
+  tau: 0.005
+
+  # === Evaluation Hyperparameters ===
+  eval_interval_steps: 10000    # How often to run evaluation (e.g., every 10k gradient steps)
+  num_eval_batches: 500         # Number of batches from the validation set to use for evaluation
+
+  top_k_percent: 0.01          # Use the top 10% of critical samples for weighted agents
+  training_subset_size: 20000  # Number of samples to use for training from the full dataset when no weighting is applied
+  validation_subset_size: 5000 # Number of samples to use for validation from the full dataset
+
+# --- Evaluation Configurations ---
+evaluation:
+  # Number of scenarios from the validation set to use for the final evaluation
+  num_eval_scenarios: 1500
+  # Number of top-scoring scenarios to select for the "Challenge Set"
+  num_challenge_scenarios: 100
+
+# --- Reward weights ---
+reward:
+  weights_v3:
+    progress: 1.0
+    safety: -1.0
+    comfort_accel: -0.1
+    comfort_jerk: -0.2
+    adherence_lane: -0.5
+    rule_red_light: -5.0
+
+waymax:
+  # Maximum number of roadgraph points to pad to. This ensures all states
+  # have a consistent shape for JAX compilation.
+  max_rg_points: 16384 # (8 * 1024) A common power-of-two size.
+  map_filter_radius: 100.0

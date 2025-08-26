@@ -1,0 +1,34 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE / Editor folders
+.vscode/
+.idea/
+
+# Environment files
+.env
+venv/
+env/
+*.conda
+
+# Data files - CRITICAL
+data/
+models/
+runs/
+outputs/
+
+# Notebook checkpoints
+.ipynb_checkpoints
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+.history
+notebooks/test.ipynb
+notebooks/test.csv
+
+debug_batch.pt
+*.ipynb_checkpoints

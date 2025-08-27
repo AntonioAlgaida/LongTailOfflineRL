@@ -5,8 +5,8 @@
 </p>
 
 <p align="center">
-  <a href="https://arxiv.org/abs/2508.07029" target="_blank">
-    <img src="https://img.shields.io/badge/ArXiv-2508.07029-b31b1b.svg?style=flat-square" alt="ArXiv Paper">
+  <a href="https://arxiv.org/abs/2508.18397" target="_blank">
+    <img src="https://img.shields.io/badge/ArXiv-2508.18397-b31b1b.svg?style=flat-square" alt="ArXiv Paper">
   </a>
   <a href="http://arxiv.org/licenses/nonexclusive-distrib/1.0/" target="_blank">
     <img src="https://img.shields.io/badge/Paper%20License-arXiv%20Perpetual-b31b1b.svg?style=flat-square" alt="ArXiv Paper License">
@@ -196,7 +196,7 @@ If you find this work useful in your own research, please consider citing our pa
 @article{GuillenPerez2024Mining,
   title   = {Mining the Long Tail: A Comparative Study of Data-Centric Criticality Metrics for Robust Offline Reinforcement Learning in Autonomous Motion Planning},
   author  = {Guillen-Perez, Antonio},
-  journal = {arXiv preprint arXiv:2508.07029},
+  journal = {arXiv preprint arXiv:2508.18397},
   year    = {2025}
 }
 ```

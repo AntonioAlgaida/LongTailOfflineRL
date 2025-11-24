@@ -125,7 +125,7 @@ class DoubleCritic(nn.Module):
         action_dim = self.cfg['action_space']['dim']
         q_head_input_dim = self.state_encoder.output_dim + action_dim
         hidden_dim = cql_cfg['hidden_layers'][0]
-        dropout_rate = self.cql_cfg.get('dropout_rate', 0.1) # Add to config
+        dropout_rate = cql_cfg.get('dropout_rate', 0.1)
 
         return nn.Sequential(
             nn.Linear(q_head_input_dim, hidden_dim),

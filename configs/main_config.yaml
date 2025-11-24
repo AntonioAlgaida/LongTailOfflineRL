@@ -86,6 +86,7 @@ cql:
   batch_size: 512 # Tune based on VRAM
   num_train_steps: 510000 # Train for a fixed number of gradient steps
   gamma: 0.90 # Discount factor
+  dropout_rate: 0.1 # Dropout rate for regularization
 
   # CQL-specific hyperparameters
   cql_alpha: 2.0 # Weight of the conservative Q-loss regularizer. This is a key param to tune.

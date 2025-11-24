@@ -69,7 +69,8 @@ def process_shard(pt_path: str) -> bool:
     score for each timestep, and saves the scores to a new .npy file.
     """
     try:
-        scenario_samples = torch.loadc
+        scenario_samples = torch.load(pt_path, weights_only=False)
+        
         scenario_id = os.path.splitext(os.path.basename(pt_path))[0]
         
         if not scenario_samples:

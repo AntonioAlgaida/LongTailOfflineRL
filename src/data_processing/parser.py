@@ -258,13 +258,14 @@ def parse_scenario(serialized_scenario: bytes) -> Dict:
     }
     
 
-def process_tfrecord_shard(shard_path: str):
+def process_tfrecord_shard(shard_path: str, skip_existing: bool = False):
     """
     Processes a single .tfrecord file, parsing all its scenarios
     and saving them as individual .npz files.
     
     Args:
         shard_path: The file path to the .tfrecord shard.
+        skip_existing: If True, will not re-process scenarios if the output .npz already exists.
     """
     output_dir = os.path.join(CONFIG['data']['processed_npz_dir'], os.path.basename(os.path.dirname(shard_path)))
     os.makedirs(output_dir, exist_ok=True)
@@ -273,67 +274,72 @@ def process_tfrecord_shard(shard_path: str):
     
     num_scenarios_processed = 0
     for serialized_record in dataset:
-        parsed_data = parse_scenario(serialized_record.numpy())
-        output_path = os.path.join(output_dir, f"{parsed_data['scenario_id']}.npz")
+        # We need to peek at the scenario_id first to check if it exists
+        scenario = scenario_pb2.Scenario()
+        scenario.ParseFromString(serialized_record.numpy())
+        scenario_id = scenario.scenario_id
         
-        # We need allow_pickle=True for the map_features dictionary
+        output_path = os.path.join(output_dir, f"{scenario_id}.npz")
+        
+        if skip_existing and os.path.exists(output_path):
+            continue # Skip this scenario as it's already parsed
+            
+        parsed_data = parse_scenario(serialized_record.numpy()) # Re-use the parsed scenario object
+        
         np.savez_compressed(output_path, **parsed_data, allow_pickle=True)
         num_scenarios_processed += 1
         
     return num_scenarios_processed
 
+
 def main():
     """
     Main function to find all .tfrecord shards and process them in parallel.
-    Includes a safe-guard to clear the previous output directory.
+    Now supports incremental parsing to skip already processed files.
     """
     output_dir = CONFIG['data']['processed_npz_dir']
+    skip_existing = False
     
-    # --- SAFE DELETION LOGIC ---
-    # 1. Check if the directory exists
     if os.path.exists(output_dir):
-        # 2. User Confirmation
         print("\n--- WARNING: Existing Data Found ---")
         print(f"The output directory '{output_dir}' already exists.")
-        response = input("Do you want to permanently delete it and its contents to start fresh? [y/N]: ")
+        response = input("Choose action: [d]elete, [c]ontinue (skip existing), [a]bort? [d/c/a]: ").lower()
         
-        if response.lower() == 'y':
-            try:
-                print(f"Deleting directory: {output_dir}")
-                shutil.rmtree(output_dir)
-                print("Directory deleted successfully.")
-            except OSError as e:
-                print(f"Error deleting directory {output_dir}: {e}")
-                sys.exit(1)
+        if response == 'd':
+            print(f"Deleting directory: {output_dir}")
+            shutil.rmtree(output_dir)
+        elif response == 'c':
+            print("Continuing. Will skip any scenarios that already have a .npz file.")
+            skip_existing = True
         else:
-            print("Aborting. Please move or delete the directory manually if you wish to re-run the parser.")
-            sys.exit(0) # Exit gracefully
+            print("Aborting.")
+            return
 
     print("\nStarting Waymo data parsing...")
     
-    # Find all .tfrecord files for both training and validation
     raw_data_dir = CONFIG['data']['raw_data_dir']
     shard_paths = glob(os.path.join(raw_data_dir, '*', '*.tfrecord*'))
     
     if not shard_paths:
         print(f"Error: No .tfrecord files found in {raw_data_dir}.")
-        print("Please check the `raw_data_dir` path in your `main_config.yaml`.")
         return
 
     print(f"Found {len(shard_paths)} .tfrecord shards to process.")
     
-    # Use multiprocessing Pool to parallelize the parsing
-    num_workers = CONFIG['data'].get('num_workers', cpu_count())
+    num_workers = cpu_count() - 1
     print(f"Using {num_workers} worker processes.")
 
+    # Use a partial function to pass the `skip_existing` argument to the worker
+    from functools import partial
+    worker_func = partial(process_tfrecord_shard, skip_existing=skip_existing)
+
     with Pool(processes=num_workers) as pool:
-        # tqdm shows progress for the parallel processing
-        results = list(tqdm(pool.imap(process_tfrecord_shard, shard_paths), total=len(shard_paths)))
+        results = list(tqdm(pool.imap(worker_func, shard_paths), total=len(shard_paths)))
 
     total_scenarios = sum(results)
     print("\n-------------------------------------------")
     print("Parsing complete!")
-    print(f"Total scenarios processed: {total_scenarios}")
+    print(f"Total NEW scenarios processed in this run: {total_scenarios}")
     print(f"Output saved to: {output_dir}")
     print("-------------------------------------------")
 
